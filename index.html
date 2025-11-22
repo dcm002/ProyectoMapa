@@ -1,156 +1,104 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mapa Interactivo con Referencias</title>
-
+    <title>Mapa Hospital - Versión Estable</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         /* === ESTILOS BÁSICOS === */
-        body {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            font-family: sans-serif;
-        }
+        body { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; font-family: sans-serif; background: #222; }
+        #map { width: 100%; height: 100%; background: #222; }
 
-        #map {
-            width: 100%;
-            height: 100%;
-            background: #333;
-        }
-
-        /* === CAPA DE ESTADO (Texto arriba) === */
+        /* === PANEL DE ESTADO (Arriba) === */
         #ui-layer {
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            width: 90%;
-            max-width: 400px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px 20px;
-            border-radius: 30px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            text-align: center;
-            font-weight: bold;
-            color: #333;
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; width: 90%; max-width: 400px;
+            background: rgba(255, 255, 255, 0.95); padding: 12px 20px;
+            border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center; font-weight: bold; color: #333;
+            border: 1px solid rgba(0,0,0,0.1);
         }
 
-        /* === VISOR FLOTANTE (Tarjeta de fotos) === */
+        /* === VISOR FLOTANTE (Abajo) === */
         #visor-nodo {
-            position: fixed;
-            bottom: -100%;
-            left: 0;
-            width: 100%;
-            background: white;
-            z-index: 9999;
+            position: fixed; bottom: -100%; left: 0; width: 100%;
+            background: white; z-index: 9999;
             border-radius: 20px 20px 0 0;
-            padding: 20px;
-            box-sizing: border-box;
-            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3);
-            transition: bottom 0.3s ease-out;
-            /* Animación suave */
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            padding: 20px; box-sizing: border-box;
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.4);
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        #visor-nodo.activo { bottom: 0; }
+
+        .visor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .visor-header h3 { margin: 0; font-size: 18px; color: #2c3e50; }
+        
+        .contenedor-foto { 
+            width: 100%; height: 200px; background: #f0f0f0; 
+            border-radius: 12px; overflow: hidden; position: relative;
+        }
+        #visor-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        
+        .sin-foto-texto {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #999; font-size: 14px;
         }
 
-        #visor-nodo.activo {
-            bottom: 0;
-        }
+        .btn-cerrar { background: #f0f0f0; border: none; font-size: 18px; cursor: pointer; color: #666; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;}
 
-        /* Clase para mostrarlo */
-
-        .visor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .visor-header h3 {
-            margin: 0;
-            font-size: 18px;
-        }
-
-        .contenedor-foto {
-            width: 100%;
-            height: 200px;
-            background: #eee;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        #visor-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .btn-cerrar {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-            padding: 0 10px;
-        }
-
-        /* Botón de Acción Inteligente */
+        /* === BOTÓN DE ACCIÓN INTELIGENTE === */
         #btn-accion-visor {
-            width: 100%;
-            padding: 15px;
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            font-size: 16px;
-            color: white;
-            cursor: pointer;
-            transition: background 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            width: 100%; padding: 16px; border: none; border-radius: 12px;
+            font-weight: 800; font-size: 16px; color: white; cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+            text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
+        #btn-accion-visor:active { transform: scale(0.98); }
 
-        /* === ICONOS DEL MAPA === */
+        /* === ELEMENTOS DEL MAPA === */
         .punto-rojo {
-            background-color: #e74c3c;
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            background-color: #e74c3c; border: 2px solid white;
+            border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
         }
+        .punto-rojo:active { transform: scale(1.5); }
 
         .flecha-azul {
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 20px solid #2980b9;
-            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+            width: 0; height: 0;
+            border-left: 12px solid transparent; 
+            border-right: 12px solid transparent;
+            border-bottom: 24px solid #2980b9;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4));
+            /* Usamos margin para animar, NO transform */
+            animation: flotar 1s infinite alternate ease-in-out;
+        }
+
+        @keyframes flotar { 
+            from { margin-top: -12px; } 
+            to { margin-top: -22px; } 
         }
     </style>
 </head>
-
 <body>
 
     <div id="ui-layer">
-        <span id="texto-estado">Toca un punto para empezar</span>
+        <span id="texto-estado">📍 Toca un punto rojo para empezar</span>
     </div>
 
     <div id="visor-nodo">
         <div class="visor-header">
-            <h3 id="visor-titulo">Lugar</h3>
-            <button class="btn-cerrar" onclick="cerrarVisor()">✖</button>
+            <h3 id="visor-titulo">Nombre del lugar</h3>
+            <button class="btn-cerrar" onclick="cerrarVisor()">✕</button>
         </div>
-
+        
         <div class="contenedor-foto">
-            <img id="visor-img" src="" alt="Foto de referencia">
+            <span class="sin-foto-texto">📷 Sin foto</span>
+            <img id="visor-img" src="" alt="Foto de referencia" onerror="this.style.display='none'">
         </div>
 
         <button id="btn-accion-visor" onclick="ejecutarAccionVisor()">Acción</button>
@@ -159,124 +107,149 @@
     <div id="map"></div>
 
     <script>
-        // ==========================================
-        // 1. CONFIGURACIÓN DE DATOS (EDITAR ESTO)
-        // ==========================================
+        // ============================================================
+        // 1. CONFIGURACIÓN DE TAMAÑO FIJO (Aquí está la solución)
+        // ============================================================
+        const MAPA_ANCHO = 1152; // Tus medidas exactas
+        const MAPA_ALTO = 648;   // Tus medidas exactas
 
-        // Añade aquí tus nodos con la propiedad 'foto' apuntando a tu carpeta
+        // ============================================================
+        // 2. DATOS (Fusión de visible e invisible)
+        // ============================================================
         const nodos = {
-            "entrada": { x: 408, y: 500, nombre: "Entrada Principal", foto: "fotos/entrada.jpg" },
-            "hall": { x: 406, y: 217, nombre: "Hall Central", foto: "fotos/hall.jpg" },
-            "hab_gabri": { x: 412, y: 332, nombre: "Hab. Gabri", foto: "" }, // Sin foto usa la genérica
-            "cocina": { x: 378, y: 177, nombre: "Cocina", foto: "" },
-            "bano_1": { x: 540, y: 185, nombre: "Baño 1", foto: "" },
-            "hab_tobi": { x: 587, y: 170, nombre: "Hab. Tobi", foto: "" },
-            "hab_snoopy": { x: 587, y: 74, nombre: "Hab. Snoopy", foto: "" },
-            "bano_2": { x: 902, y: 290, nombre: "Baño 2", foto: "" }
+            // --- LUGARES VISIBLES ---
+            "entrada":    { x: 408, y: 500, nombre: "Entrada Principal", foto: "fotos/entrada.jpg" },
+            "hab_gabri":  { x: 412, y: 332, nombre: "Hab. Gabri",        foto: "fotos/habitacion.jpg" },
+            "cocina":     { x: 378, y: 177, nombre: "Cocina",            foto: "fotos/cocina.jpg" },
+            "hall":       { x: 406, y: 217, nombre: "Hall Central",      foto: "fotos/hall.jpg" },
+            "bano_1":     { x: 540, y: 185, nombre: "Baño 1",            foto: "" },
+            "hab_tobi":   { x: 587, y: 170, nombre: "Hab. Tobi",         foto: "" },
+            "hab_snoopy": { x: 587, y: 74,  nombre: "Hab. Snoopy",       foto: "" },
+            "bano_2":     { x: 902, y: 290, nombre: "Baño 2",            foto: "" },
+
+            // --- RIELES INVISIBLES (Waypoints) ---
+            "rail_v1": { x: 408, y: 400, esOculto: true }, 
+            "rail_v2": { x: 408, y: 280, esOculto: true },
+            "rotonda": { x: 408, y: 185, esOculto: true },
+            "rail_h1": { x: 480, y: 185, esOculto: true },
+            "rail_h2": { x: 587, y: 185, esOculto: true },
+            "giro_snoopy": { x: 700, y: 185, esOculto: true },
+            "entrada_snoopy": { x: 760, y: 74, esOculto: true },
+            "fondo_pasillo": { x: 902, y: 185, esOculto: true }
         };
 
         const conexiones = {
-            "entrada": ["hall", "hab_gabri"], "hab_gabri": ["entrada", "hall"],
-            "hall": ["entrada", "hab_gabri", "cocina", "bano_1", "hab_tobi", "hab_snoopy"],
-            "cocina": ["hall"], "bano_1": ["hall"], "hab_tobi": ["hall"],
-            "hab_snoopy": ["hall", "bano_2"], "bano_2": ["hab_snoopy"]
+            "entrada": ["rail_v1"],
+            "rail_v1": ["entrada", "hab_gabri", "rail_v2"],
+            "hab_gabri": ["rail_v1", "rail_v2"],
+            "rail_v2": ["rail_v1", "rotonda", "hall"], 
+            "hall": ["rail_v2"],
+            "rotonda": ["rail_v2", "cocina", "rail_h1"],
+            "cocina": ["rotonda"],
+            "rail_h1": ["rotonda", "bano_1", "rail_h2"],
+            "bano_1":  ["rail_h1"],
+            "rail_h2": ["rail_h1", "hab_tobi", "giro_snoopy"],
+            "hab_tobi":["rail_h2"],
+            "giro_snoopy": ["rail_h2", "entrada_snoopy", "fondo_pasillo"],
+            "entrada_snoopy": ["giro_snoopy", "hab_snoopy"],
+            "hab_snoopy": ["entrada_snoopy"],
+            "fondo_pasillo": ["giro_snoopy", "bano_2"],
+            "bano_2": ["fondo_pasillo"]
         };
 
-        // ==========================================
-        // 2. LÓGICA DEL PROGRAMA
-        // ==========================================
-
+        // ============================================================
+        // 3. INICIALIZACIÓN
+        // ============================================================
         let map;
-        let imgObj = new Image();
-        let layerPuntos = [];
         let layerRuta;
         let marcadorJugador;
+        
+        // Estados
+        let nodoVisualizado = null;
+        let origen = null;
+        let destino = null;
 
-        // Variables de Estado
-        let nodoVisualizado = null; // El que estamos viendo en la foto
-        let origen = null;          // Donde empieza la ruta
-        let destino = null;         // A donde queremos ir
+        // Iniciamos directamente, SIN esperar a cargar la imagen
+        // porque ya sabemos cuánto mide.
+        window.onload = function() {
+            iniciarMapa();
+        };
 
-        // Cargar imagen para saber tamaño real
-        imgObj.src = 'mapa.jpg';
-        imgObj.onload = function () { iniciarMapa(imgObj.naturalWidth, imgObj.naturalHeight); };
-        imgObj.onerror = function () { alert("ERROR: No encuentro 'mapa.jpg'. Pon la imagen en la misma carpeta."); };
-
-        function iniciarMapa(w, h) {
+        function iniciarMapa() {
             map = L.map('map', {
-                crs: L.CRS.Simple, minZoom: -2, maxZoom: 2, zoomSnap: 0.5
+                crs: L.CRS.Simple, 
+                minZoom: -2, maxZoom: 2, zoomSnap: 0.5, 
+                attributionControl: false
             });
 
-            const bounds = [[0, 0], [h, w]];
+            // USAMOS LAS MEDIDAS FIJAS
+            const bounds = [[0, 0], [MAPA_ALTO, MAPA_ANCHO]];
             L.imageOverlay('mapa.jpg', bounds).addTo(map);
             map.fitBounds(bounds);
 
-            // Dibujar los puntos rojos interactivos
-            dibujarNodos(h);
+            dibujarNodos();
 
-            // Si hay QR (parámetro URL), iniciamos ahí
             const p = new URLSearchParams(window.location.search);
-            if (p.get('inicio') && nodos[p.get('inicio')]) {
-                fijarOrigen(p.get('inicio'));
+            if(p.get('inicio') && nodos[p.get('inicio')]) {
+                nodoVisualizado = p.get('inicio');
+                ejecutarAccionVisor(); 
             }
         }
 
-        // Conversor de coordenadas (Invertir Y)
-        function xy(x, y) {
-            const h = imgObj.naturalHeight;
-            return [h - y, x];
+        // CONVERTIDOR DE COORDENADAS ROBUSTO
+        function xy(x, y) { 
+            // Usamos MAPA_ALTO fijo. Esto no falla nunca.
+            return [MAPA_ALTO - y, x]; 
         }
 
-        function dibujarNodos(h) {
-            for (let id in nodos) {
+        function dibujarNodos() {
+            for(let id in nodos) {
                 let n = nodos[id];
-                const icono = L.divIcon({ className: 'punto-rojo', iconSize: [20, 20], iconAnchor: [10, 10] });
+                if(n.esOculto) continue;
 
-                L.marker(xy(n.x, n.y), { icon: icono })
+                const icono = L.divIcon({className: 'punto-rojo', iconSize: [20, 20], iconAnchor: [10, 10]});
+                
+                L.marker(xy(n.x, n.y), {icon: icono})
                     .addTo(map)
-                    .on('click', () => clickNodo(id)); // Al hacer clic, abrimos el visor
+                    .on('click', () => clickNodo(id));
             }
         }
 
-        // --- GESTIÓN DEL CLIC Y EL VISOR ---
+        // ============================================================
+        // 4. INTERACTIVIDAD
+        // ============================================================
 
         function clickNodo(id) {
             nodoVisualizado = id;
             const info = nodos[id];
 
-            // 1. Cargar Info y Foto (Igual que antes)
             document.getElementById('visor-titulo').innerText = info.nombre;
             const img = document.getElementById('visor-img');
-
-            if (info.foto) {
+            
+            img.style.display = 'none';
+            if(info.foto) {
                 img.src = info.foto;
                 img.style.display = 'block';
-            } else {
-                img.src = 'https://via.placeholder.com/400x200?text=Sin+Foto';
             }
 
-            // 2. CONFIGURAR BOTÓN (LÓGICA MEJORADA)
             const btn = document.getElementById('btn-accion-visor');
-
+            
             if (origen === null) {
-                // CASO A: Aún no hemos empezado
-                btn.innerText = "📍 ESTOY AQUÍ (Fijar Inicio)";
-                btn.style.backgroundColor = "#27ae60"; // Verde
-            }
+                btn.innerText = "📍 ESTOY AQUÍ (Empezar)";
+                btn.style.background = "#27ae60";
+                btn.style.color = "white";
+            } 
             else if (id === destino) {
-                // CASO B: ¡Hemos tocado nuestro destino actual!
-                btn.innerText = "🎉 ¡YA HE LLEGADO! (Finalizar)";
-                btn.style.backgroundColor = "#f1c40f"; // Amarillo/Dorado
-                btn.style.color = "#333"; // Letra oscura para que se lea bien
-            }
+                btn.innerText = "🎉 ¡HE LLEGADO!";
+                btn.style.background = "#f1c40f";
+                btn.style.color = "#333";
+            } 
             else {
-                // CASO C: Queremos ir a un sitio nuevo
-                btn.innerText = "🏁 IR AQUÍ (Calcular Ruta)";
-                btn.style.backgroundColor = "#3498db"; // Azul
+                btn.innerText = "🏁 IR AQUÍ";
+                btn.style.background = "#3498db";
                 btn.style.color = "white";
             }
 
-            // 3. Mostrar Visor
             document.getElementById('visor-nodo').classList.add('activo');
         }
 
@@ -286,88 +259,80 @@
 
         function ejecutarAccionVisor() {
             if (origen === null) {
-                // 1. Fijar el inicio
                 fijarOrigen(nodoVisualizado);
-
             } else if (nodoVisualizado === destino) {
-                // 2. FINALIZAR RUTA (El usuario ha llegado)
-                alert("¡Enhorabuena! Has llegado a " + nodos[destino].nombre);
-
-                // Reiniciamos todo para la siguiente persona
+                alert("¡Enhorabuena! Has llegado a tu destino.");
                 location.reload();
-
             } else {
-                // 3. Calcular ruta normal
                 fijarDestino(nodoVisualizado);
             }
-
             cerrarVisor();
         }
 
-        // --- FUNCIONES DE NAVEGACIÓN ---
+        // ============================================================
+        // 5. RUTAS
+        // ============================================================
 
         function fijarOrigen(id) {
             origen = id;
             const n = nodos[id];
-
-            // Poner marcador de "Persona"
-            const iconoFlecha = L.divIcon({ className: 'flecha-azul', iconSize: [20, 20], iconAnchor: [10, 10] });
-            if (marcadorJugador) map.removeLayer(marcadorJugador);
-            marcadorJugador = L.marker(xy(n.x, n.y), { icon: iconoFlecha }).addTo(map);
-
-            map.setView(xy(n.x, n.y), 0); // Zoom al usuario
-            document.getElementById('texto-estado').innerText = "Origen: " + n.nombre + ". Selecciona destino.";
+            
+            const iconoFlecha = L.divIcon({ className: 'flecha-azul', iconSize: [24, 24], iconAnchor: [12, 12] });
+            if(marcadorJugador) map.removeLayer(marcadorJugador);
+            marcadorJugador = L.marker(xy(n.x, n.y), {icon: iconoFlecha}).addTo(map);
+            
+            map.setView(xy(n.x, n.y), 0);
+            document.getElementById('texto-estado').innerText = "Origen fijado: " + n.nombre;
         }
 
         function fijarDestino(id) {
             destino = id;
             calcularRuta(origen, destino);
-            document.getElementById('texto-estado').innerText = "Ruta hacia: " + nodos[destino].nombre;
+            document.getElementById('texto-estado').innerText = "Yendo a: " + nodos[destino].nombre;
         }
 
         function calcularRuta(ini, fin) {
-            // Algoritmo BFS (Búsqueda en anchura) para encontrar camino corto
             let q = [[ini]], visitados = new Set();
             let rutaEncontrada = null;
 
-            while (q.length > 0) {
+            while(q.length > 0) {
                 let camino = q.shift();
                 let actual = camino[camino.length - 1];
 
-                if (actual === fin) {
+                if(actual === fin) {
                     rutaEncontrada = camino;
                     break;
                 }
 
-                if (!visitados.has(actual)) {
+                if(!visitados.has(actual)) {
                     visitados.add(actual);
                     let vecinos = conexiones[actual] || [];
-                    for (let vecino of vecinos) {
+                    for(let vecino of vecinos) {
                         q.push([...camino, vecino]);
                     }
                 }
             }
 
-            if (rutaEncontrada) {
+            if(rutaEncontrada) {
                 dibujarLinea(rutaEncontrada);
             } else {
-                alert("No hay camino conectado entre estos puntos en tus datos.");
+                alert("❌ Error: No hay camino conectado hasta aquí.");
             }
         }
 
         function dibujarLinea(ids) {
-            if (layerRuta) map.removeLayer(layerRuta);
+            if(layerRuta) map.removeLayer(layerRuta);
+            
             const puntos = ids.map(id => xy(nodos[id].x, nodos[id].y));
-
+            
             layerRuta = L.polyline(puntos, {
-                color: '#3498db', weight: 6, opacity: 0.8, dashArray: '10, 10'
+                color: '#3498db', weight: 6, opacity: 0.8, 
+                dashArray: '10, 15', lineCap: 'round', lineJoin: 'round'
             }).addTo(map);
 
-            // Ajustar mapa para ver toda la ruta
-            map.fitBounds(layerRuta.getBounds(), { padding: [50, 50] });
+            map.fitBounds(layerRuta.getBounds(), {padding: [50, 50]});
         }
 
     </script>
 </body>
-
 </html>
