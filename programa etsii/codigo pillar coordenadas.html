@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Calibrador V5.1 (Anti-Banner)</title>
+    <style>
+        /* RESET */
+        body { margin: 0; height: 100vh; overflow: hidden; font-family: monospace; background: #222; color: white; display: flex; flex-direction: column; }
+
+        /* BARRA SUPERIOR */
+        #top-bar {
+            height: 60px; background: #333; border-bottom: 1px solid #555;
+            display: flex; align-items: center; padding: 0 20px; z-index: 100;
+        }
+        label { font-size: 16px; font-weight: bold; margin-right: 10px; }
+        input[type=range] { flex: 1; cursor: pointer; margin-right: 20px; }
+        #zoom-display { color: cyan; font-weight: bold; width: 80px; }
+
+        /* CONTENEDOR PRINCIPAL */
+        #main-layout {
+            display: flex; flex: 1; 
+            /* --- CAMBIO IMPORTANTE AQUÍ --- */
+            /* Antes era: calc(100vh - 60px) */
+            /* Ahora restamos 160px (60 de barra arriba + 100 para la publi abajo) */
+            height: calc(100vh - 160px); 
+            /* ------------------------------ */
+            border-bottom: 2px solid cyan; /* Línea para que veas dónde acaba tu zona */
+        }
+
+        /* ZONA DE SCROLL (La ventana) */
+        #scroll-viewport {
+            flex: 3;
+            overflow: auto; /* Barras de scroll */
+            background: #444;
+            position: relative;
+            display: block; 
+        }
+
+        /* EL WRAPPER */
+        #canvas-wrapper {
+            position: relative;
+            width: 1000px; 
+            background: #555;
+            transform-origin: top left;
+        }
+
+        /* LA IMAGEN */
+        img {
+            display: block; width: 100%; pointer-events: none;
+        }
+
+        /* Puntos */
+        .mark {
+            position: absolute; width: 10px; height: 10px;
+            background: red; border: 2px solid white; border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 50;
+        }
+        .label {
+            position: absolute; color: yellow; font-size: 14px; font-weight: bold;
+            transform: translate(10px, -10px); pointer-events: none; text-shadow: 1px 1px 2px black;
+        }
+
+        /* PANEL LATERAL */
+        #sidebar {
+            flex: 1; min-width: 300px; max-width: 350px;
+            background: #1a1a1a; border-left: 2px solid #555;
+            display: flex; flex-direction: column; padding: 15px;
+        }
+        textarea { flex: 1; background: black; color: lime; border: 1px solid #555; padding: 10px; resize: none; }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <label>ZOOM (Ancho PX):</label>
+        <input type="range" id="slider" min="500" max="10000" step="100" value="1000">
+        <span id="zoom-display">1000px</span>
+    </div>
+
+    <div id="main-layout">
+        <div id="scroll-viewport">
+            <div id="canvas-wrapper">
+                <img src="mapa.svg" id="mapa-img">
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <h3>Coordenadas SVG</h3>
+            <p style="font-size:12px; color:#aaa">
+                1. Usa el zoom a tope.<br>2. Marca los puntos.<br>3. Copia el código.
+            </p>
+            <textarea id="output"></textarea>
+            <button onclick="copiar()" style="padding:10px; margin-top:10px; cursor:pointer; background:#27ae60; color:white; border:none; font-weight:bold;">COPIAR</button>
+            <button onclick="undo()" style="padding:5px; margin-top:5px; cursor:pointer; background:#e67e22; color:white; border:none;">Deshacer último</button>
+        </div>
+    </div>
+
+    <script>
+        const wrapper = document.getElementById('canvas-wrapper');
+        const img = document.getElementById('mapa-img');
+        const slider = document.getElementById('slider');
+        const display = document.getElementById('zoom-display');
+        const output = document.getElementById('output');
+        let count = 1;
+
+        slider.addEventListener('input', (e) => {
+            const px = e.target.value + 'px';
+            wrapper.style.width = px;
+            display.innerText = px;
+        });
+
+        wrapper.addEventListener('click', (e) => {
+            const rect = wrapper.getBoundingClientRect();
+            const xVis = e.clientX - rect.left;
+            const yVis = e.clientY - rect.top;
+
+            const scaleX = img.naturalWidth / rect.width;
+            const scaleY = img.naturalHeight / rect.height;
+
+            const realX = Math.round(xVis * scaleX);
+            const realY = Math.round(yVis * scaleY);
+
+            const percX = (xVis / rect.width) * 100;
+            const percY = (yVis / rect.height) * 100;
+
+            const dot = document.createElement('div');
+            dot.className = 'mark';
+            dot.style.left = percX + '%';
+            dot.style.top = percY + '%';
+            
+            const lbl = document.createElement('span');
+            lbl.className = 'label';
+            lbl.innerText = count;
+            dot.appendChild(lbl);
+            wrapper.appendChild(dot);
+
+            const nombre = "Punto " + count;
+            
+            const code = `"${count}": { x: ${realX}, y: ${realY}, nombre: "${nombre}" },\n`;
+            output.value += code;
+            output.scrollTop = output.scrollHeight;
+            count++;
+        });
+
+        function undo() {
+            const lines = output.value.trim().split('\n');
+            if(lines.length > 0 && lines[0] !== "") {
+                lines.pop();
+                output.value = lines.join('\n') + (lines.length ? '\n' : '');
+                if(wrapper.lastChild.className === 'mark') wrapper.lastChild.remove();
+                count--;
+            }
+        }
+
+        function copiar() {
+            output.select();
+            document.execCommand('copy');
+            alert("Copiado!");
+        }
+    </script>
+</body>
+</html>
