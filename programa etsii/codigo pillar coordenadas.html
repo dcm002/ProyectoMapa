@@ -2,174 +2,136 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Calibrador V7 - Extractor de Puntos</title>
+    <title>Calibrador con Leaflet (El Bueno)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* RESET */
-        body { margin: 0; height: 100vh; overflow: hidden; font-family: monospace; background: #222; color: white; display: flex; flex-direction: column; }
-
-        /* BARRA SUPERIOR */
-        #top-bar {
-            height: 60px; background: #333; border-bottom: 1px solid #555;
-            display: flex; align-items: center; padding: 0 20px; z-index: 100;
-        }
-        label { font-size: 16px; font-weight: bold; margin-right: 10px; }
-        input[type=range] { flex: 1; cursor: pointer; margin-right: 20px; }
-        #zoom-display { color: cyan; font-weight: bold; width: 80px; }
-
-        /* CONTENEDOR PRINCIPAL */
-        #main-layout {
-            display: flex; flex: 1; height: calc(100vh - 60px);
-        }
-
-        /* ZONA DE SCROLL (La ventana) */
-        #scroll-viewport {
-            flex: 3;
-            overflow: auto; 
-            background: #444;
-            position: relative;
-            display: block; 
-            
-            /* --- EL TRUCO ANTI-PUBLICIDAD --- */
-            /* Damos la vuelta al contenedor para que la barra salga ARRIBA */
-            transform: scaleY(-1); 
-        }
-
-        /* EL WRAPPER (Donde está la imagen) */
-        #canvas-wrapper {
-            position: relative;
-            width: 1000px; 
-            background: #555;
-            transform-origin: top left;
-
-            /* --- DESHACEMOS EL TRUCO --- */
-            /* Volvemos a poner la imagen del derecho */
-            transform: scaleY(-1);
-        }
-
-        /* LA IMAGEN */
-        img { display: block; width: 100%; pointer-events: none; user-select: none; }
-
-        /* Puntos Visuales */
-        .mark {
-            position: absolute; width: 8px; height: 8px;
-            background: #e74c3c; border: 1px solid white; border-radius: 50%;
-            transform: translate(-50%, -50%); pointer-events: none; z-index: 50;
-        }
-        .label {
-            position: absolute; color: yellow; font-size: 14px; font-weight: bold;
-            transform: translate(10px, -10px); pointer-events: none; text-shadow: 1px 1px 2px black;
-        }
-
-        /* PANEL LATERAL (Tu lista de coordenadas) */
+        body { display: flex; margin: 0; height: 100vh; font-family: monospace; overflow: hidden; }
+        
+        /* EL MAPA OCUPA CASI TODO */
+        #map { flex: 3; background: #333; cursor: crosshair; }
+        
+        /* BARRA LATERAL */
         #sidebar {
-            flex: 1; min-width: 300px; max-width: 350px;
-            background: #1a1a1a; border-left: 2px solid #555;
+            flex: 1; min-width: 300px; max-width: 400px;
+            background: #111; color: #0f0; border-left: 2px solid #555;
             display: flex; flex-direction: column; padding: 15px;
-            /* Ajuste por si acaso */
-            z-index: 200; 
         }
-        textarea { flex: 1; background: black; color: #0f0; border: 1px solid #555; padding: 10px; resize: none; font-family: monospace; font-size: 11px;}
+        textarea { 
+            flex: 1; background: #000; color: #0f0; border: 1px solid #444; 
+            padding: 10px; resize: none; margin-top: 10px; font-size: 11px;
+        }
+        h3 { margin: 0 0 10px 0; color: white; }
+        button { padding: 10px; margin-top: 5px; cursor: pointer; font-weight: bold; }
+        
+        /* Estilo del marcador temporal */
+        .punto-temp {
+            width: 10px; height: 10px; background: red; 
+            border: 2px solid yellow; border-radius: 50%;
+        }
     </style>
 </head>
 <body>
 
-    <div id="top-bar">
-        <label>ZOOM:</label>
-        <input type="range" id="slider" min="500" max="10000" step="100" value="1000">
-        <span id="zoom-display">1000px</span>
+    <div id="map"></div>
+
+    <div id="sidebar">
+        <h3>Extractor Leaflet</h3>
+        <p style="color:#aaa; font-size:12px; margin:0;">
+            1. Haz zoom y muévete libremente.<br>
+            2. Clic en el punto exacto.<br>
+            3. Copia el código final.
+        </p>
+        <textarea id="output"></textarea>
+        <button onclick="copiar()" style="background:#27ae60; color:white; border:none;">COPIAR CÓDIGO</button>
+        <button onclick="borrarUltimo()" style="background:#e67e22; color:white; border:none;">Deshacer Último</button>
     </div>
 
-    <div id="main-layout">
-        <div id="scroll-viewport">
-            <div id="canvas-wrapper">
-                <img src="mapa.svg" id="mapa-img">
-            </div>
-        </div>
-
-        <div id="sidebar">
-            <h3>Lista de Puntos</h3>
-            <p style="font-size:12px; color:#aaa">
-                1. Usa el zoom.<br>
-                2. Haz clic en el mapa.<br>
-                3. Copia el código generado.
-            </p>
-            <textarea id="output"></textarea>
-            <button onclick="copiar()" style="padding:10px; margin-top:10px; cursor:pointer; background:#27ae60; color:white; border:none; font-weight:bold;">COPIAR CÓDIGO</button>
-            <button onclick="undo()" style="padding:5px; margin-top:5px; cursor:pointer; background:#e67e22; color:white; border:none;">Deshacer último</button>
-        </div>
-    </div>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const wrapper = document.getElementById('canvas-wrapper');
-        const img = document.getElementById('mapa-img');
-        const slider = document.getElementById('slider');
-        const display = document.getElementById('zoom-display');
-        const output = document.getElementById('output');
-        let count = 1;
+        // 1. CARGAR IMAGEN PARA SABER TAMAÑO
+        const img = new Image();
+        // SI TU ARCHIVO SE LLAMA DE OTRA FORMA, CAMBIALO AQUÍ:
+        img.src = 'mapa.svg'; 
 
-        // ZOOM
-        slider.addEventListener('input', (e) => {
-            const px = e.target.value + 'px';
-            wrapper.style.width = px;
-            display.innerText = px;
-        });
+        let map;
+        let contador = 1;
+        let marcadores = [];
 
-        // CLIC Y CÁLCULO
-        wrapper.addEventListener('click', (e) => {
-            const rect = wrapper.getBoundingClientRect();
+        img.onload = function() {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            iniciarMapa(w, h);
+        }
+
+        img.onerror = function() {
+            alert("❌ ERROR: No encuentro 'mapa.svg'. Asegúrate de que está en la misma carpeta.");
+        }
+
+        function iniciarMapa(w, h) {
+            // Iniciar Leaflet
+            map = L.map('map', {
+                crs: L.CRS.Simple, // Modo plano (no terrestre)
+                minZoom: -2,
+                maxZoom: 4,        // Permite mucho zoom
+                zoomSnap: 0.5
+            });
+
+            // Límites de la imagen: [[0,0], [alto, ancho]]
+            // OJO: Leaflet usa Y hacia arriba. 
+            const bounds = [[0, 0], [h, w]];
+
+            // Cargar imagen
+            L.imageOverlay(img.src, bounds).addTo(map);
+            map.fitBounds(bounds);
+
+            // EVENTO CLIC
+            map.on('click', function(e) {
+                // Leaflet nos da coordenadas (lat, lng)
+                // Lat = Y (desde abajo), Lng = X (desde izquierda)
+                
+                // Convertimos a coordenadas de Imagen (Y desde arriba)
+                // Para que coincida con tu lógica visual
+                const x = Math.round(e.latlng.lng);
+                const y = Math.round(h - e.latlng.lat); 
+
+                // Añadir marcador visual en el mapa
+                const icon = L.divIcon({ className: 'punto-temp', iconSize: [10,10], iconAnchor: [5,5] });
+                const marker = L.marker(e.latlng, {icon: icon}).addTo(map);
+                marcadores.push(marker);
+
+                // Generar texto JSON
+                const nombre = "Punto " + contador;
+                const linea = `"${contador}": { x: ${x}, y: ${y}, nombre: "${nombre}" },\n`;
+                
+                const textarea = document.getElementById('output');
+                textarea.value += linea;
+                textarea.scrollTop = textarea.scrollHeight;
+                
+                contador++;
+            });
+        }
+
+        function borrarUltimo() {
+            const textarea = document.getElementById('output');
+            const lines = textarea.value.trim().split('\n');
             
-            // Coordenadas visuales del clic
-            const xVis = e.clientX - rect.left;
-            const yVis = e.clientY - rect.top;
-
-            // Factores de escala (Real vs Pantalla)
-            const scaleX = img.naturalWidth / rect.width;
-            const scaleY = img.naturalHeight / rect.height;
-
-            // Coordenada MATEMÁTICA REAL (para el código)
-            const realX = Math.round(xVis * scaleX);
-            const realY = Math.round(yVis * scaleY);
-
-            // Posición % para pintar el punto (para que aguante el zoom)
-            const percX = (xVis / rect.width) * 100;
-            const percY = (yVis / rect.height) * 100;
-
-            // Pintar punto
-            const dot = document.createElement('div');
-            dot.className = 'mark';
-            dot.style.left = percX + '%';
-            dot.style.top = percY + '%';
-            
-            const lbl = document.createElement('span');
-            lbl.className = 'label';
-            lbl.innerText = count;
-            dot.appendChild(lbl);
-            wrapper.appendChild(dot);
-
-            // Generar texto JSON
-            // Usamos "n" + count como ID automático (ej: "n1", "n2")
-            const nombre = "Punto " + count;
-            const code = `"n${count}": { x: ${realX}, y: ${realY}, nombre: "${nombre}" },\n`;
-            
-            output.value += code;
-            output.scrollTop = output.scrollHeight;
-            count++;
-        });
-
-        function undo() {
-            const lines = output.value.trim().split('\n');
-            if(lines.length > 0 && lines[0] !== "") {
+            if (lines.length > 0 && lines[0] !== "") {
+                // Borrar texto
                 lines.pop();
-                output.value = lines.join('\n') + (lines.length ? '\n' : '');
-                if(wrapper.lastChild.className === 'mark') wrapper.lastChild.remove();
-                count--;
+                textarea.value = lines.join('\n') + (lines.length ? '\n' : '');
+                
+                // Borrar marcador del mapa
+                const ultimoMarker = marcadores.pop();
+                if (ultimoMarker) map.removeLayer(ultimoMarker);
+                
+                contador--;
             }
         }
 
         function copiar() {
-            output.select();
+            document.getElementById('output').select();
             document.execCommand('copy');
-            alert("¡Copiado!");
+            alert("Copiado!");
         }
     </script>
 </body>
