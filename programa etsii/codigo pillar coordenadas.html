@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Calibrador V5.1 (Anti-Banner)</title>
+    <title>Calibrador V7 - Extractor de Puntos</title>
     <style>
         /* RESET */
         body { margin: 0; height: 100vh; overflow: hidden; font-family: monospace; background: #222; color: white; display: flex; flex-direction: column; }
@@ -18,41 +18,41 @@
 
         /* CONTENEDOR PRINCIPAL */
         #main-layout {
-            display: flex; flex: 1; 
-            /* --- CAMBIO IMPORTANTE AQUÍ --- */
-            /* Antes era: calc(100vh - 60px) */
-            /* Ahora restamos 160px (60 de barra arriba + 100 para la publi abajo) */
-            height: calc(100vh - 160px); 
-            /* ------------------------------ */
-            border-bottom: 2px solid cyan; /* Línea para que veas dónde acaba tu zona */
+            display: flex; flex: 1; height: calc(100vh - 60px);
         }
 
         /* ZONA DE SCROLL (La ventana) */
         #scroll-viewport {
             flex: 3;
-            overflow: auto; /* Barras de scroll */
+            overflow: auto; 
             background: #444;
             position: relative;
             display: block; 
+            
+            /* --- EL TRUCO ANTI-PUBLICIDAD --- */
+            /* Damos la vuelta al contenedor para que la barra salga ARRIBA */
+            transform: scaleY(-1); 
         }
 
-        /* EL WRAPPER */
+        /* EL WRAPPER (Donde está la imagen) */
         #canvas-wrapper {
             position: relative;
             width: 1000px; 
             background: #555;
             transform-origin: top left;
+
+            /* --- DESHACEMOS EL TRUCO --- */
+            /* Volvemos a poner la imagen del derecho */
+            transform: scaleY(-1);
         }
 
         /* LA IMAGEN */
-        img {
-            display: block; width: 100%; pointer-events: none;
-        }
+        img { display: block; width: 100%; pointer-events: none; user-select: none; }
 
-        /* Puntos */
+        /* Puntos Visuales */
         .mark {
-            position: absolute; width: 10px; height: 10px;
-            background: red; border: 2px solid white; border-radius: 50%;
+            position: absolute; width: 8px; height: 8px;
+            background: #e74c3c; border: 1px solid white; border-radius: 50%;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 50;
         }
         .label {
@@ -60,19 +60,21 @@
             transform: translate(10px, -10px); pointer-events: none; text-shadow: 1px 1px 2px black;
         }
 
-        /* PANEL LATERAL */
+        /* PANEL LATERAL (Tu lista de coordenadas) */
         #sidebar {
             flex: 1; min-width: 300px; max-width: 350px;
             background: #1a1a1a; border-left: 2px solid #555;
             display: flex; flex-direction: column; padding: 15px;
+            /* Ajuste por si acaso */
+            z-index: 200; 
         }
-        textarea { flex: 1; background: black; color: lime; border: 1px solid #555; padding: 10px; resize: none; }
+        textarea { flex: 1; background: black; color: #0f0; border: 1px solid #555; padding: 10px; resize: none; font-family: monospace; font-size: 11px;}
     </style>
 </head>
 <body>
 
     <div id="top-bar">
-        <label>ZOOM (Ancho PX):</label>
+        <label>ZOOM:</label>
         <input type="range" id="slider" min="500" max="10000" step="100" value="1000">
         <span id="zoom-display">1000px</span>
     </div>
@@ -85,12 +87,14 @@
         </div>
 
         <div id="sidebar">
-            <h3>Coordenadas SVG</h3>
+            <h3>Lista de Puntos</h3>
             <p style="font-size:12px; color:#aaa">
-                1. Usa el zoom a tope.<br>2. Marca los puntos.<br>3. Copia el código.
+                1. Usa el zoom.<br>
+                2. Haz clic en el mapa.<br>
+                3. Copia el código generado.
             </p>
             <textarea id="output"></textarea>
-            <button onclick="copiar()" style="padding:10px; margin-top:10px; cursor:pointer; background:#27ae60; color:white; border:none; font-weight:bold;">COPIAR</button>
+            <button onclick="copiar()" style="padding:10px; margin-top:10px; cursor:pointer; background:#27ae60; color:white; border:none; font-weight:bold;">COPIAR CÓDIGO</button>
             <button onclick="undo()" style="padding:5px; margin-top:5px; cursor:pointer; background:#e67e22; color:white; border:none;">Deshacer último</button>
         </div>
     </div>
@@ -103,26 +107,34 @@
         const output = document.getElementById('output');
         let count = 1;
 
+        // ZOOM
         slider.addEventListener('input', (e) => {
             const px = e.target.value + 'px';
             wrapper.style.width = px;
             display.innerText = px;
         });
 
+        // CLIC Y CÁLCULO
         wrapper.addEventListener('click', (e) => {
             const rect = wrapper.getBoundingClientRect();
+            
+            // Coordenadas visuales del clic
             const xVis = e.clientX - rect.left;
             const yVis = e.clientY - rect.top;
 
+            // Factores de escala (Real vs Pantalla)
             const scaleX = img.naturalWidth / rect.width;
             const scaleY = img.naturalHeight / rect.height;
 
+            // Coordenada MATEMÁTICA REAL (para el código)
             const realX = Math.round(xVis * scaleX);
             const realY = Math.round(yVis * scaleY);
 
+            // Posición % para pintar el punto (para que aguante el zoom)
             const percX = (xVis / rect.width) * 100;
             const percY = (yVis / rect.height) * 100;
 
+            // Pintar punto
             const dot = document.createElement('div');
             dot.className = 'mark';
             dot.style.left = percX + '%';
@@ -134,9 +146,11 @@
             dot.appendChild(lbl);
             wrapper.appendChild(dot);
 
+            // Generar texto JSON
+            // Usamos "n" + count como ID automático (ej: "n1", "n2")
             const nombre = "Punto " + count;
+            const code = `"n${count}": { x: ${realX}, y: ${realY}, nombre: "${nombre}" },\n`;
             
-            const code = `"${count}": { x: ${realX}, y: ${realY}, nombre: "${nombre}" },\n`;
             output.value += code;
             output.scrollTop = output.scrollHeight;
             count++;
@@ -155,7 +169,7 @@
         function copiar() {
             output.select();
             document.execCommand('copy');
-            alert("Copiado!");
+            alert("¡Copiado!");
         }
     </script>
 </body>
