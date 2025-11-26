@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>El Arquitecto V2 - SVG Edition</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { display: flex; margin: 0; height: 100vh; font-family: monospace; background: #222; color: white; overflow: hidden; }
+        
+        #map { flex: 3; background: #333; cursor: crosshair; }
+        
+        #sidebar {
+            flex: 1; min-width: 350px; max-width: 450px;
+            background: #111; border-left: 2px solid #555;
+            display: flex; flex-direction: column; padding: 15px;
+        }
+
+        textarea { 
+            flex: 1; background: #000; color: #0f0; border: 1px solid #444; 
+            padding: 10px; resize: none; font-size: 11px; white-space: pre;
+        }
+
+        .controls { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444; }
+        button { padding: 8px; margin: 5px 2px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
+        .btn-mode { background: #555; color: white; width: 100%; text-align: left;}
+        .btn-mode.active { background: #3498db; }
+        .btn-copy { background: #27ae60; color: white; width: 100%; margin-top: 10px; padding: 15px;}
+        
+        .info { color: #aaa; font-size: 12px; margin-bottom: 10px; line-height: 1.4; }
+        
+        /* Estilos Marcadores */
+        .punto-azul { background: #3498db; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 5px black; }
+        .punto-verde { background: #2ecc71; border: 1px solid white; border-radius: 50%; opacity: 0.8; }
+        .punto-seleccionado { background: yellow; border: 2px solid red; border-radius: 50%; animation: pulse 0.5s infinite alternate; }
+        
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.3); } }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="sidebar">
+        <h3>Arquitecto de Rutas</h3>
+        <div class="controls">
+            <p class="info">
+                <b>PASO 1:</b> Selecciona "Crear Nodos" y haz clic en los pasillos para crear el camino (puntos verdes).<br>
+                <b>PASO 2:</b> Selecciona "Conectar" y une los puntos azules con los verdes, y los verdes entre sí.<br>
+                <b>PASO 3:</b> Copia el código final.
+            </p>
+            <button id="btn-node" class="btn-mode active" onclick="setMode('node')">1. 🟢 Crear Nodos (Rieles)</button>
+            <button id="btn-link" class="btn-mode" onclick="setMode('link')">2. 🔗 Conectar Puntos</button>
+            <button onclick="deshacer()" style="background:#e67e22; color:white; width:100%">↩ Deshacer Último</button>
+        </div>
+        
+        <textarea id="output" readonly></textarea>
+        <button class="btn-copy" onclick="copiar()">COPIAR JSON FINAL</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ==========================================
+        // 1. TODOS TUS DATOS CARGADOS
+        // ==========================================
+        const nodosExistentes = {
+            // PUNTOS (Aulas/Despachos)
+            "p1": { x: 272, y: 368, nombre: "Punto 1" }, "p2": { x: 255, y: 360, nombre: "Punto 2" },
+            "p3": { x: 272, y: 329, nombre: "Punto 3" }, "p4": { x: 291, y: 328, nombre: "Punto 4" },
+            "p5": { x: 311, y: 265, nombre: "Punto 5" }, "p6": { x: 190, y: 280, nombre: "Punto 6" },
+            "p7": { x: 164, y: 275, nombre: "Punto 7" }, "p8": { x: 155, y: 286, nombre: "Punto 8" },
+            "p9": { x: 118, y: 275, nombre: "Punto 9" }, "p10": { x: 92, y: 276, nombre: "Punto 10" },
+            "p11": { x: 89, y: 271, nombre: "Punto 11" }, "p12": { x: 230, y: 255, nombre: "Punto 12" },
+            "p13": { x: 242, y: 257, nombre: "Punto 13" }, "p14": { x: 231, y: 236, nombre: "Punto 14" },
+            "p15": { x: 242, y: 235, nombre: "Punto 15" }, "p16": { x: 232, y: 184, nombre: "Punto 16" },
+            "p17": { x: 241, y: 181, nombre: "Punto 17" }, "p18": { x: 242, y: 165, nombre: "Punto 18" },
+            "p19": { x: 273, y: 165, nombre: "Punto 19" }, "p20": { x: 294, y: 173, nombre: "Punto 20" },
+            "p21": { x: 308, y: 173, nombre: "Punto 21" }, "p22": { x: 327, y: 167, nombre: "Punto 22" },
+            "p23": { x: 416, y: 158, nombre: "Punto 23" }, "p24": { x: 469, y: 165, nombre: "Punto 24" },
+            "p25": { x: 488, y: 165, nombre: "Punto 25" }, "p26": { x: 476, y: 144, nombre: "Punto 26" },
+            "p27": { x: 475, y: 123, nombre: "Punto 27" }, "p28": { x: 544, y: 114, nombre: "Punto 28" },
+            "p29": { x: 529, y: 174, nombre: "Punto 29" }, "p30": { x: 529, y: 200, nombre: "Punto 30" },
+            "p31": { x: 505, y: 220, nombre: "Punto 31" }, "p32": { x: 529, y: 244, nombre: "Punto 32" },
+            "p33": { x: 530, y: 285, nombre: "Punto 33" }, "p34": { x: 518, y: 258, nombre: "Punto 34" },
+            "p35": { x: 452, y: 253, nombre: "Punto 35" }, "p36": { x: 543, y: 329, nombre: "Punto 36" },
+            "p37": { x: 571, y: 325, nombre: "Punto 37" },
+
+            // ESCALERAS
+            "e1": { x: 249, y: 357, nombre: "Escalera 1" }, "e2": { x: 218, y: 280, nombre: "Escalera 2" },
+            "e3": { x: 147, y: 278, nombre: "Escalera 3" }, "e4": { x: 268, y: 175, nombre: "Escalera 4" },
+            "e5": { x: 412, y: 163, nombre: "Escalera 5" }, "e6": { x: 527, y: 133, nombre: "Escalera 6" },
+            "e7": { x: 508, y: 206, nombre: "Escalera 7" }, "e8": { x: 507, y: 232, nombre: "Escalera 8" },
+            "e9": { x: 526, y: 321, nombre: "Escalera 9" },
+
+            // ASCENSORES
+            "a1": { x: 251, y: 341, nombre: "Ascensor 1" }, "a2": { x: 263, y: 174, nombre: "Ascensor 2" },
+            "a3": { x: 282, y: 174, nombre: "Ascensor 3" }, "a4": { x: 402, y: 174, nombre: "Ascensor 4" },
+            "a5": { x: 525, y: 317, nombre: "Ascensor 5" },
+
+            // BAÑOS
+            "b1": { x: 256, y: 343, nombre: "Baño 1" }, "b2": { x: 226, y: 292, nombre: "Baño 2" },
+            "b3": { x: 424, y: 164, nombre: "Baño 3" }, "b4": { x: 566, y: 125, nombre: "Baño 4" },
+            "b5": { x: 518, y: 181, nombre: "Baño 5" }
+        };
+
+        // ==========================================
+        // CONFIGURACIÓN DEL MAPA (SVG)
+        // ==========================================
+        const img = new Image();
+        // AQUÍ ESTÁ LA CLAVE: Forzamos SVG
+        img.src = 'mapa.svg'; 
+
+        let map;
+        let mode = 'node'; 
+        let selectedNode = null; 
+        let contadorRieles = 1;
+        
+        let nuevosNodos = {}; 
+        let conexiones = {};  
+        let historyStack = []; 
+
+        img.onload = function() {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            if(w === 0) { alert("ERROR: No se ha cargado mapa.svg"); return; }
+            iniciarMapa(w, h);
+        }
+        
+        // Si tarda en cargar, forzamos evento
+        if(img.complete && img.naturalWidth > 0) img.onload();
+
+        function iniciarMapa(w, h) {
+            map = L.map('map', {
+                crs: L.CRS.Simple, minZoom: -2, maxZoom: 4, zoomSnap: 0.5, attributionControl: false
+            });
+            const bounds = [[0, 0], [h, w]];
+            L.imageOverlay('mapa.svg', bounds).addTo(map);
+            map.fitBounds(bounds);
+
+            // Pintar los puntos existentes (AZULES)
+            for (let id in nodosExistentes) {
+                const n = nodosExistentes[id];
+                pintarPunto(id, n, 'punto-azul', 10);
+            }
+
+            // CLIC EN MAPA
+            map.on('click', function(e) {
+                if (mode === 'node') {
+                    const x = Math.round(e.latlng.lng);
+                    const y = Math.round(h - e.latlng.lat);
+                    
+                    const id = "r" + contadorRieles;
+                    contadorRieles++;
+
+                    nuevosNodos[id] = { x: x, y: y, esOculto: true };
+                    
+                    // Pintar punto verde
+                    const marker = pintarPunto(id, nuevosNodos[id], 'punto-verde', 8);
+                    historyStack.push({ type: 'node', id: id, layer: marker });
+                    
+                    actualizarJSON();
+                }
+            });
+        }
+
+        function pintarPunto(id, data, clase, tam) {
+            const latLng = xy(data.x, data.y);
+            const icon = L.divIcon({ className: clase, iconSize: [tam, tam], iconAnchor: [tam/2, tam/2] });
+            
+            const marker = L.marker(latLng, { icon: icon }).addTo(map);
+            marker.nodoID = id; 
+
+            marker.on('click', function(e) {
+                L.DomEvent.stopPropagation(e); 
+                if (mode === 'link') {
+                    gestionarConexion(this);
+                }
+            });
+            
+            marker.bindTooltip(id, { permanent: false, direction: 'top', opacity: 0.8 });
+            return marker;
+        }
+
+        function gestionarConexion(marker) {
+            const id = marker.nodoID;
+
+            if (selectedNode === null) {
+                selectedNode = marker;
+                cambiarEstiloMarcador(marker, 'punto-seleccionado');
+            } else {
+                const idOrigen = selectedNode.nodoID;
+                const idDestino = id;
+
+                if (idOrigen === idDestino) {
+                    restaurarEstilo(selectedNode);
+                    selectedNode = null;
+                    return;
+                }
+
+                agregarConexion(idOrigen, idDestino);
+                agregarConexion(idDestino, idOrigen);
+
+                const linea = L.polyline([selectedNode.getLatLng(), marker.getLatLng()], { color: '#e74c3c', weight: 3 }).addTo(map);
+                historyStack.push({ type: 'link', a: idOrigen, b: idDestino, layer: linea });
+
+                restaurarEstilo(selectedNode);
+                selectedNode = null;
+                actualizarJSON();
+            }
+        }
+
+        function xy(x, y) { return [img.naturalHeight - y, x]; }
+
+        function agregarConexion(a, b) {
+            if (!conexiones[a]) conexiones[a] = [];
+            if (!conexiones[a].includes(b)) conexiones[a].push(b);
+        }
+
+        function cambiarEstiloMarcador(marker, clase) {
+            const icon = L.divIcon({ className: clase, iconSize: [14, 14], iconAnchor: [7, 7] });
+            marker.setIcon(icon);
+        }
+
+        function restaurarEstilo(marker) {
+            const id = marker.nodoID;
+            // Si empieza por r es riel (verde), sino es existente (azul)
+            const clase = id.startsWith('r') ? 'punto-verde' : 'punto-azul';
+            const tam = id.startsWith('r') ? 8 : 10;
+            const icon = L.divIcon({ className: clase, iconSize: [tam, tam], iconAnchor: [tam/2, tam/2] });
+            marker.setIcon(icon);
+        }
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('btn-node').className = m === 'node' ? 'btn-mode active' : 'btn-mode';
+            document.getElementById('btn-link').className = m === 'link' ? 'btn-mode active' : 'btn-mode';
+            if (selectedNode) {
+                restaurarEstilo(selectedNode);
+                selectedNode = null;
+            }
+        }
+
+        function deshacer() {
+            const item = historyStack.pop();
+            if (!item) return;
+            map.removeLayer(item.layer);
+
+            if (item.type === 'node') {
+                delete nuevosNodos[item.id];
+                contadorRieles--;
+            } else if (item.type === 'link') {
+                conexiones[item.a] = conexiones[item.a].filter(x => x !== item.b);
+                conexiones[item.b] = conexiones[item.b].filter(x => x !== item.a);
+                if (conexiones[item.a].length === 0) delete conexiones[item.a];
+                if (conexiones[item.b].length === 0) delete conexiones[item.b];
+            }
+            actualizarJSON();
+        }
+
+        function actualizarJSON() {
+            let texto = "// === COPIA ESTO EN TU CÓDIGO FINAL === \n\n";
+            
+            texto += "const nodos = {\n";
+            texto += "    // ... Pega aquí tus puntos azules (p1, a1, e1, b1...) que ya tienes ...\n";
+            
+            // Solo añadimos los NUEVOS rieles al JSON para no hacerlo gigante, 
+            // luego los mezclarás con los existentes en el código final
+            for (let id in nuevosNodos) {
+                const n = nuevosNodos[id];
+                texto += `    "${id}": { x: ${n.x}, y: ${n.y}, esOculto: true },\n`;
+            }
+            texto += "};\n\n";
+
+            texto += "const conexiones = {\n";
+            for (let id in conexiones) {
+                const targets = conexiones[id].map(t => `"${t}"`).join(", ");
+                texto += `    "${id}": [${targets}],\n`;
+            }
+            texto += "};";
+
+            document.getElementById('output').value = texto;
+        }
+
+        function copiar() {
+            document.getElementById('output').select();
+            document.execCommand('copy');
+            alert("¡JSON Copiado!");
+        }
+    </script>
+</body>
+</html>
