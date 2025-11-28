@@ -63,11 +63,32 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-
+        /* --- NUEVO: ESTILO PARA LAS FOTOS EN EL MAPA --- */
+        .leaflet-popup-content { margin: 10px; text-align: center; }
+        
+        .popup-foto {
+            width: 100%;
+            max-width: 200px; /* Tamaño máximo para que no tape todo */
+            height: auto;
+            border-radius: 8px;
+            margin-top: 8px;
+            border: 1px solid #ccc;
+            display: block;
+        }
+        
+        .popup-titulo { 
+            font-size: 14px; 
+            font-weight: bold; 
+            color: #333; 
+            display: block;
+        }
         @keyframes pulse { 0% {box-shadow: 0 0 0 0 rgba(220,53,69,0.7);} 70% {box-shadow: 0 0 0 10px rgba(0,0,0,0);} 100% {box-shadow: 0 0 0 0 rgba(0,0,0,0);} }
+        
     </style>
 </head>
 <body>
+
+
 
     <div id="controls">
         <div id="origen-texto">📍 Escanea un QR para situarte</div>
@@ -129,7 +150,7 @@
             "p17": { x: 241, y: 181, nombre: "Punto 17" }, "p18": { x: 242, y: 165, nombre: "Punto 18" },
             "p19": { x: 273, y: 165, nombre: "Punto 19" }, "p20": { x: 294, y: 173, nombre: "Punto 20" },
             "p21": { x: 308, y: 173, nombre: "Punto 21" }, "p22": { x: 327, y: 167, nombre: "Punto 22" },
-            "p23": { x: 416, y: 158, nombre: "Punto 23" }, "p24": { x: 469, y: 165, nombre: "Punto 24" },
+            "p23": { x: 416, y: 158, nombre: "Punto 23", foto: "fotos/sala_maquina.jpg" }, "p24": { x: 469, y: 165, nombre: "Punto 24" },
             "p25": { x: 488, y: 165, nombre: "Punto 25" }, "p26": { x: 476, y: 144, nombre: "Punto 26" },
             "p27": { x: 475, y: 123, nombre: "Punto 27" }, "p28": { x: 544, y: 114, nombre: "Punto 28" },
             "p29": { x: 529, y: 174, nombre: "Punto 29" }, "p30": { x: 529, y: 200, nombre: "Punto 30" },
@@ -386,8 +407,20 @@
             const iconS = L.divIcon({className: 'icon-start', iconSize: [12,12]});
             const iconE = L.divIcon({className: 'icon-end', iconSize: [14,14]});
 
-            markers.push(L.marker(xy(nStart.x, nStart.y), {icon: iconS}).addTo(map).bindPopup("Estás aquí"));
-            markers.push(L.marker(xy(nEnd.x, nEnd.y), {icon: iconE}).addTo(map).bindPopup("Destino").openPopup());
+           // Marcador de INICIO (Usamos la función para que salga foto si la tiene)
+            markers.push(
+                L.marker(xy(nStart.x, nStart.y), {icon: iconS})
+                .addTo(map)
+                .bindPopup(generarPopupHTML(nStart))
+            );
+
+            // Marcador de DESTINO (Se abre solo al llegar)
+            markers.push(
+                L.marker(xy(nEnd.x, nEnd.y), {icon: iconE})
+                .addTo(map)
+                .bindPopup(generarPopupHTML(nEnd))
+                .openPopup() 
+            );
 
             document.getElementById('status').innerText = `🏁 Distancia: ${Math.round(resultado.distancia)} pasos`;
         }
@@ -438,7 +471,17 @@
             }
             return sel;
         }
-
+        // --- NUEVA FUNCIÓN: Generador de Popups con Foto ---
+        function generarPopupHTML(nodo) {
+            let html = `<span class="popup-titulo">${nodo.nombre}</span>`;
+            
+            // Si el nodo tiene la propiedad 'foto', añadimos la imagen
+            if (nodo.foto) {
+                // El 'onerror' sirve por si la imagen no carga, que no salga el icono roto
+                html += `<img src="${nodo.foto}" class="popup-foto" onerror="this.style.display='none'">`; 
+            }
+            return html;
+        }
     </script>
 </body>
 </html>
