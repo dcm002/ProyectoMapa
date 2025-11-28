@@ -390,11 +390,27 @@
 
         // C) LLENAR EL BUSCADOR (DATALIST)
         const dataList = document.getElementById('lista-destinos');
+        
+        // 1. Añadimos las opciones "Mágicas" al principio
+        const opcionesEspeciales = [
+            { nombre: "✨ Baño más cercano", id: "NEAREST_WC" },
+            { nombre: "✨ Ascensor más cercano", id: "NEAREST_ASCENSOR" },
+            { nombre: "✨ Cafetería más cercana", id: "NEAREST_CAFETERIA" } // Por si hay varias
+        ];
+
+        opcionesEspeciales.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.nombre;
+            option.setAttribute('data-id', item.id); // ID especial para detectarlo luego
+            dataList.appendChild(option);
+        });
+
+        // 2. Añadimos el resto de sitios normales (Tu código de siempre)
         Object.keys(nodos).sort().forEach(id => {
             if (!nodos[id].esOculto) {
                 const option = document.createElement('option');
-                option.value = nodos[id].nombre || id; // Lo que ve el usuario
-                option.setAttribute('data-id', id);   // El ID real oculto
+                option.value = nodos[id].nombre || id; 
+                option.setAttribute('data-id', id);   
                 dataList.appendChild(option);
             }
         });
@@ -406,12 +422,10 @@
         let markers = [];
 
         function trazarRuta() {
-            // 1. Obtener el destino escrito por el usuario
+            // 1. Obtener el destino
             const inputVal = document.getElementById('buscador-destino').value;
             let idDestino = null;
 
-            // Buscar qué ID corresponde a ese nombre
-            // (Esto es necesario porque el input solo nos da el texto)
             const opciones = document.getElementById('lista-destinos').options;
             for (let i = 0; i < opciones.length; i++) {
                 if (opciones[i].value === inputVal) {
@@ -419,15 +433,25 @@
                     break;
                 }
             }
-
-            // Si el usuario escribió el ID directamente (ej: "p37")
             if (!idDestino && nodos[inputVal]) idDestino = inputVal;
 
+            // --- NUEVO: Lógica de "El más cercano" ---
+            if (idDestino === "NEAREST_WC") {
+                idDestino = encontrarMasCercano('wc');
+                if(idDestino) alert(`El baño más cercano es: ${nodos[idDestino].nombre}`);
+            } 
+            else if (idDestino === "NEAREST_ASCENSOR") {
+                idDestino = encontrarMasCercano('ascensor');
+                if(idDestino) alert(`El ascensor más cercano es: ${nodos[idDestino].nombre}`);
+            }
+            // ------------------------------------------
+
             if (!idDestino) {
-                alert("Por favor, selecciona un destino válido de la lista.");
+                alert("Por favor, selecciona un destino válido o no se encontró ninguno de ese tipo.");
                 return;
             }
 
+            // ... (El resto de la función sigue igual: limpieza, dijkstra, dibujar...)
             // Limpieza previa
             if (rutaLayer) map.removeLayer(rutaLayer);
             markers.forEach(m => map.removeLayer(m));
@@ -557,6 +581,33 @@
             
             // 3. ¡Calculamos la ruta!
             trazarRuta();
+        }
+        // --- NUEVA FUNCIÓN: Buscar el más cercano ---
+        function encontrarMasCercano(tipoBuscado) {
+            let ganadorID = null;
+            let menorDistancia = Infinity;
+
+            // Recorremos todos los nodos
+            Object.keys(nodos).forEach(id => {
+                const n = nodos[id];
+                
+                // Si el nodo es del tipo que buscamos (ej: 'wc' o 'ascensor')
+                // Nota: Comparamos también si el ID empieza por 'b' para compatibilidad con tus baños antiguos
+                const esTipoCorrecto = n.tipo === tipoBuscado || (tipoBuscado === 'wc' && id.startsWith('b'));
+
+                if (esTipoCorrecto) {
+                    // Calculamos la ruta hasta este candidato
+                    const resultado = dijkstra(idInicio, id);
+                    
+                    // Si hay ruta y es más corta que la que teníamos, este es el nuevo ganador
+                    if (resultado && resultado.distancia < menorDistancia) {
+                        menorDistancia = resultado.distancia;
+                        ganadorID = id;
+                    }
+                }
+            });
+
+            return ganadorID;
         }
     </script>
 </body>
