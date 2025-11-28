@@ -99,6 +99,20 @@
             color: #333; 
             display: block;
         }
+        /* Botón dentro del popup */
+        .btn-popup {
+            background-color: #28a745; /* Verde */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            margin-top: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .btn-popup:hover { background-color: #218838; }
         @keyframes pulse { 0% {box-shadow: 0 0 0 0 rgba(220,53,69,0.7);} 70% {box-shadow: 0 0 0 10px rgba(0,0,0,0);} 100% {box-shadow: 0 0 0 0 rgba(0,0,0,0);} }
         
     </style>
@@ -351,27 +365,27 @@
         Object.keys(nodos).forEach(id => {
             const n = nodos[id];
             
-            // 1. Si el nodo tiene un 'tipo' explícito (ej: cafeteria, consejeria)
             if (n.tipo && configIconos[n.tipo]) {
-                crearMarcadorFijo(n, configIconos[n.tipo]);
+                // AQUI ESTÁ EL CAMBIO: Añadimos 'id' al final
+                crearMarcadorFijo(n, configIconos[n.tipo], id); 
             }
-            // 2. (Regla antigua) Si empieza por 'b', asumimos que es baño
             else if (id.toLowerCase().startsWith('b')) {
-                crearMarcadorFijo(n, configIconos['wc']);
+                // AQUI TAMBIÉN: Añadimos 'id' al final
+                crearMarcadorFijo(n, configIconos['wc'], id);
             }
         });
 
         // Función auxiliar para no repetir código
-        function crearMarcadorFijo(nodo, config) {
+        function crearMarcadorFijo(nodo, config, id) { // <--- Añadimos 'id' aquí
             const icono = L.divIcon({
                 className: `icon-poi ${config.clase}`,
                 html: config.texto,
-                iconSize: [28, 18] // Tamaño del rectangulito
+                iconSize: [28, 18] 
             });
 
             L.marker(xy(nodo.x, nodo.y), {icon: icono})
              .addTo(map)
-             .bindPopup(generarPopupHTML(nodo));
+             .bindPopup(generarPopupHTML(nodo, id)); // <--- Y lo pasamos aquí
         }
 
         // C) LLENAR EL BUSCADOR (DATALIST)
@@ -515,15 +529,34 @@
             return sel;
         }
         // --- NUEVA FUNCIÓN: Generador de Popups con Foto ---
-        function generarPopupHTML(nodo) {
+        // Ahora la función acepta (nodo, id)
+        function generarPopupHTML(nodo, id) {
             let html = `<span class="popup-titulo">${nodo.nombre}</span>`;
             
-            // Si el nodo tiene la propiedad 'foto', añadimos la imagen
             if (nodo.foto) {
-                // El 'onerror' sirve por si la imagen no carga, que no salga el icono roto
                 html += `<img src="${nodo.foto}" class="popup-foto" onerror="this.style.display='none'">`; 
             }
+
+            // --- NUEVO: Botón de "Ir aquí" ---
+            // Solo lo añadimos si tenemos un ID válido
+            if (id) {
+                html += `<button class="btn-popup" onclick="irA('${id}')">Ir aquí 🚀</button>`;
+            }
+            
             return html;
+        }
+        // --- NUEVA FUNCIÓN: Seleccionar destino desde el mapa ---
+        function irA(idDestino) {
+            const nodo = nodos[idDestino];
+            
+            // 1. Escribimos el nombre en el buscador (para que el usuario lo vea)
+            document.getElementById('buscador-destino').value = nodo.nombre || idDestino;
+            
+            // 2. Cerramos el popup para que no estorbe
+            map.closePopup();
+            
+            // 3. ¡Calculamos la ruta!
+            trazarRuta();
         }
     </script>
 </body>
