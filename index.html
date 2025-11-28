@@ -63,6 +63,23 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+        /* --- ESTILOS PARA TUS PUNTOS DE INTERÉS --- */
+        .icon-poi {
+            color: white;
+            border-radius: 4px;
+            border: 1px solid white;
+            text-align: center;
+            font-size: 11px;
+            line-height: 16px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Colores específicos */
+        .poi-cafe { background-color: #d35400; } /* Naranja oscuro */
+        .poi-info { background-color: #34495e; } /* Gris azulado (Consejería) */
+        .poi-lift { background-color: #8e44ad; } /* Morado (Ascensores) */
+        .poi-wc   { background-color: #007bff; } /* Azul (El que ya tenías) */
         /* --- NUEVO: ESTILO PARA LAS FOTOS EN EL MAPA --- */
         .leaflet-popup-content { margin: 10px; text-align: center; }
         
@@ -139,7 +156,7 @@
         // 3. DATOS (Tus coordenadas)
         // ==========================================
         const rawNodos = {
-            "p1": { x: 272, y: 368, nombre: "Punto 1 - Entrada" }, "p2": { x: 255, y: 360, nombre: "Punto 2" },
+            "p1": { x: 272, y: 368, nombre: "Punto 1 - Entrada" }, "p2": { x: 255, y: 360, nombre: "Consejería", tipo: "consejeria" },
             "p3": { x: 272, y: 329, nombre: "Punto 3" }, "p4": { x: 291, y: 328, nombre: "Punto 4" },
             "p5": { x: 311, y: 265, nombre: "Punto 5" }, "p6": { x: 190, y: 280, nombre: "Punto 6" },
             "p7": { x: 164, y: 275, nombre: "Punto 7" }, "p8": { x: 155, y: 286, nombre: "Punto 8" },
@@ -151,7 +168,7 @@
             "p19": { x: 273, y: 165, nombre: "Punto 19" }, "p20": { x: 294, y: 173, nombre: "Punto 20" },
             "p21": { x: 308, y: 173, nombre: "Punto 21" }, "p22": { x: 327, y: 167, nombre: "Punto 22" },
             "p23": { x: 416, y: 158, nombre: "Punto 23", foto: "fotos/sala_maquina.jpg" }, "p24": { x: 469, y: 165, nombre: "Punto 24" },
-            "p25": { x: 488, y: 165, nombre: "Punto 25" }, "p26": { x: 476, y: 144, nombre: "Punto 26" },
+            "p25": { x: 488, y: 165, nombre: "Punto 25" }, "p26": { x: 476, y: 144, nombre: "Cafetería", tipo: "cafeteria" },
             "p27": { x: 475, y: 123, nombre: "Punto 27" }, "p28": { x: 544, y: 114, nombre: "Punto 28" },
             "p29": { x: 529, y: 174, nombre: "Punto 29" }, "p30": { x: 529, y: 200, nombre: "Punto 30" },
             "p31": { x: 505, y: 220, nombre: "Punto 31" }, "p32": { x: 529, y: 244, nombre: "Punto 32" },
@@ -172,9 +189,11 @@
             "e5": { x: 412, y: 163, nombre: "Escalera 5" }, "e6": { x: 527, y: 133, nombre: "Escalera 6" },
             "e7": { x: 508, y: 206, nombre: "Escalera 7" }, "e8": { x: 507, y: 232, nombre: "Escalera 8" },
             "e9": { x: 526, y: 321, nombre: "Escalera 9" },
-            "a1": { x: 251, y: 341, nombre: "Ascensor 1" }, "a2": { x: 263, y: 174, nombre: "Ascensor 2" },
-            "a3": { x: 282, y: 174, nombre: "Ascensor 3" }, "a4": { x: 402, y: 174, nombre: "Ascensor 4" },
-            "a5": { x: 525, y: 317, nombre: "Ascensor 5" },
+            "a1": { x: 251, y: 341, nombre: "Ascensor 1", tipo: "ascensor" }, 
+            "a2": { x: 263, y: 174, nombre: "Ascensor 2", tipo: "ascensor" },
+            "a3": { x: 282, y: 174, nombre: "Ascensor 3", tipo: "ascensor" }, 
+            "a4": { x: 402, y: 174, nombre: "Ascensor 4", tipo: "ascensor" },
+            "a5": { x: 525, y: 317, nombre: "Ascensor 5", tipo: "ascensor" },
             "w1": { x: 272, y: 354, esOculto: true }, "w2": { x: 272, y: 343, esOculto: true }, 
             "w3": { x: 281, y: 326, esOculto: true }, "w4": { x: 311, y: 276, esOculto: true }, 
             "w5": { x: 311, y: 294, esOculto: true }, "w6": { x: 311, y: 325, esOculto: true },
@@ -317,19 +336,43 @@
             document.getElementById('origen-texto').innerHTML = `📍 Estás en: <b>${nombreInicio}</b>`;
         }
 
-        // B) PINTAR BAÑOS AUTOMÁTICAMENTE
+        // ==========================================
+        // B) PINTAR PUNTOS DE INTERÉS (ICONOS FIJOS)
+        // ==========================================
+        
+        // Configuración de iconos
+        const configIconos = {
+            'wc':         { texto: 'WC', clase: 'poi-wc' },
+            'cafeteria':  { texto: '☕',  clase: 'poi-cafe' },
+            'consejeria': { texto: 'ℹ️',  clase: 'poi-info' },
+            'ascensor':   { texto: '🛗',  clase: 'poi-lift' }
+        };
+
         Object.keys(nodos).forEach(id => {
-            // Si empieza por 'b' (b1, b2...) o es tipo 'wc'
-            if (id.toLowerCase().startsWith('b')) {
-                const n = nodos[id];
-                const iconoWC = L.divIcon({
-                    className: 'icon-wc',
-                    html: 'WC',
-                    iconSize: [24, 18]
-                });
-                L.marker(xy(n.x, n.y), {icon: iconoWC}).addTo(map).bindPopup(n.nombre);
+            const n = nodos[id];
+            
+            // 1. Si el nodo tiene un 'tipo' explícito (ej: cafeteria, consejeria)
+            if (n.tipo && configIconos[n.tipo]) {
+                crearMarcadorFijo(n, configIconos[n.tipo]);
+            }
+            // 2. (Regla antigua) Si empieza por 'b', asumimos que es baño
+            else if (id.toLowerCase().startsWith('b')) {
+                crearMarcadorFijo(n, configIconos['wc']);
             }
         });
+
+        // Función auxiliar para no repetir código
+        function crearMarcadorFijo(nodo, config) {
+            const icono = L.divIcon({
+                className: `icon-poi ${config.clase}`,
+                html: config.texto,
+                iconSize: [28, 18] // Tamaño del rectangulito
+            });
+
+            L.marker(xy(nodo.x, nodo.y), {icon: icono})
+             .addTo(map)
+             .bindPopup(generarPopupHTML(nodo));
+        }
 
         // C) LLENAR EL BUSCADOR (DATALIST)
         const dataList = document.getElementById('lista-destinos');
