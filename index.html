@@ -189,6 +189,33 @@
             "p33": { x: 530, y: 285, nombre: "Punto 33" }, "p34": { x: 518, y: 258, nombre: "Punto 34" },
             "p35": { x: 452, y: 253, nombre: "Punto 35" }, "p36": { x: 543, y: 329, nombre: "Punto 36" },
             "p37": { x: 571, y: 325, nombre: "Punto 37" },
+            // --- PUNTOS VISUALES DE TRAYECTORIA (FOTOS DEL CAMINO) ---
+            "r1": { x: 273, y: 349, nombre: "Vista pasillo", foto: "fotos/T1.jpg" },
+            "r2": { x: 238, y: 323, nombre: "Cruce", foto: "fotos/r2.jpg" },
+            "r3": { x: 309, y: 321, nombre: "Pasillo recto", foto: "fotos/r3.jpg" },
+            "r4": { x: 235, y: 270, nombre: "Giro", foto: "fotos/r4.jpg" },
+            "r5": { x: 226, y: 270, nombre: "Pasillo", foto: "fotos/r5.jpg" },
+            "r6": { x: 187, y: 271, nombre: "Cruce oeste", foto: "fotos/r6.jpg" },
+            "r7": { x: 179, y: 271, nombre: "Pasillo oeste", foto: "fotos/r7.jpg" },
+            "r8": { x: 235, y: 259, nombre: "Pasillo central", foto: "fotos/r8.jpg" },
+            "r9": { x: 235, y: 179, nombre: "Zona ascensores", foto: "fotos/r9.jpg" },
+            "r10": { x: 235, y: 171, nombre: "Cruce norte", foto: "fotos/r10.jpg" },
+            "r11": { x: 155, y: 273, nombre: "Final pasillo", foto: "fotos/r11.jpg" },
+            "r12": { x: 312, y: 170, nombre: "Pasillo norte", foto: "fotos/r12.jpg" },
+            "r13": { x: 319, y: 170, nombre: "Cruce aulas", foto: "fotos/r13.jpg" },
+            "r14": { x: 402, y: 171, nombre: "Zona central", foto: "fotos/r14.jpg" },
+            "r15": { x: 401, y: 162, nombre: "Entrada bloque", foto: "fotos/r15.jpg" },
+            "r16": { x: 472, y: 156, nombre: "Pasillo este", foto: "fotos/r16.jpg" },
+            "r17": { x: 471, y: 135, nombre: "Rincón", foto: "fotos/r17.jpg" },
+            "r18": { x: 509, y: 139, nombre: "Zona este", foto: "fotos/r18.jpg" },
+            "r19": { x: 520, y: 139, nombre: "Acceso", foto: "fotos/r19.jpg" },
+            "r20": { x: 546, y: 128, nombre: "Final este", foto: "fotos/r20.jpg" },
+            "r21": { x: 509, y: 169, nombre: "Cruce este", foto: "fotos/r21.jpg" },
+            "r22": { x: 523, y: 168, nombre: "Pasillo lateral", foto: "fotos/r22.jpg" },
+            "r23": { x: 518, y: 220, nombre: "Zona media", foto: "fotos/r23.jpg" },
+            "r24": { x: 522, y: 306, nombre: "Llegando al final", foto: "fotos/r24.jpg" },
+            "r25": { x: 530, y: 313, nombre: "Curva", foto: "fotos/r25.jpg" },
+            "r26": { x: 551, y: 323, nombre: "Destino final", foto: "fotos/r26.jpg" },
             
             // BAÑOS (Empiezan por 'b')
             "b1": { x: 256, y: 343, nombre: "Baño Pasillo Central", tipo: "wc" }, 
@@ -435,23 +462,16 @@
             }
             if (!idDestino && nodos[inputVal]) idDestino = inputVal;
 
-            // --- NUEVO: Lógica de "El más cercano" ---
-            if (idDestino === "NEAREST_WC") {
-                idDestino = encontrarMasCercano('wc');
-                if(idDestino) alert(`El baño más cercano es: ${nodos[idDestino].nombre}`);
-            } 
-            else if (idDestino === "NEAREST_ASCENSOR") {
-                idDestino = encontrarMasCercano('ascensor');
-                if(idDestino) alert(`El ascensor más cercano es: ${nodos[idDestino].nombre}`);
-            }
-            // ------------------------------------------
+            // Lógica de "El más cercano"
+            if (idDestino === "NEAREST_WC") idDestino = encontrarMasCercano('wc');
+            else if (idDestino === "NEAREST_ASCENSOR") idDestino = encontrarMasCercano('ascensor');
+            else if (idDestino === "NEAREST_CAFETERIA") idDestino = encontrarMasCercano('cafeteria');
 
             if (!idDestino) {
-                alert("Por favor, selecciona un destino válido o no se encontró ninguno de ese tipo.");
+                alert("Por favor, selecciona un destino válido.");
                 return;
             }
 
-            // ... (El resto de la función sigue igual: limpieza, dijkstra, dibujar...)
             // Limpieza previa
             if (rutaLayer) map.removeLayer(rutaLayer);
             markers.forEach(m => map.removeLayer(m));
@@ -481,6 +501,28 @@
 
             map.fitBounds(rutaLayer.getBounds(), {padding: [50,50]});
 
+            // --- DETECTOR DE FOTOS EN RUTA (Puntos 'r') ---
+            Object.keys(nodos).forEach(id => {
+                if (id.startsWith('r')) {
+                    const nodoR = nodos[id];
+                    let estaCerca = false;
+                    // Comprobamos si el punto 'r' está cerca de la ruta
+                    for (let i = 0; i < resultado.ruta.length; i++) {
+                        const nodoRuta = nodos[resultado.ruta[i]];
+                        if (Math.hypot(nodoR.x - nodoRuta.x, nodoR.y - nodoRuta.y) < 15) { 
+                            estaCerca = true;
+                            break; 
+                        }
+                    }
+                    if (estaCerca) {
+                        const marcadorFoto = L.circleMarker(xy(nodoR.x, nodoR.y), {
+                            radius: 5, fillColor: "white", color: "#007bff", weight: 2, opacity: 1, fillOpacity: 1
+                        }).addTo(map).bindPopup(generarPopupHTML(nodoR));
+                        markers.push(marcadorFoto);
+                    }
+                }
+            });
+
             // 4. Marcadores Inicio/Fin
             const nStart = nodos[idInicio];
             const nEnd = nodos[idDestino];
@@ -488,23 +530,22 @@
             const iconS = L.divIcon({className: 'icon-start', iconSize: [12,12]});
             const iconE = L.divIcon({className: 'icon-end', iconSize: [14,14]});
 
-           // Marcador de INICIO (Usamos la función para que salga foto si la tiene)
             markers.push(
                 L.marker(xy(nStart.x, nStart.y), {icon: iconS})
                 .addTo(map)
                 .bindPopup(generarPopupHTML(nStart))
             );
 
-            // Marcador de DESTINO (Se abre solo al llegar)
             markers.push(
                 L.marker(xy(nEnd.x, nEnd.y), {icon: iconE})
                 .addTo(map)
                 .bindPopup(generarPopupHTML(nEnd))
-                .openPopup() 
+                .openPopup()
             );
 
             document.getElementById('status').innerText = `🏁 Distancia: ${Math.round(resultado.distancia)} pasos`;
         }
+        
 
         function dijkstra(inicio, fin) {
             const costos = {};
