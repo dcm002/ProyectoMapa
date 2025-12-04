@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mapa V30 - Fusión Final</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- ESTILOS BASE --- */
+        body { margin: 0; padding: 0; background: #eee; overflow: hidden; font-family: 'Roboto', sans-serif; }
+        #map { width: 100vw; height: 100vh; background: #222; }
+
+        /* --- TARJETA INFERIOR (EL VISOR) --- */
+        #info-card {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: white; z-index: 1000;
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+            transform: translateY(110%); /* Oculto al inicio */
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            max-height: 60vh; display: flex; flex-direction: column;
+        }
+         
+        /* Mostrar tarjeta */
+        #info-card.visible { transform: translateY(0); }
+
+        /* Contenido de la tarjeta */
+        .card-content { padding: 20px; overflow-y: auto; }
+
+        /* Header de la tarjeta */
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .card-title { font-size: 20px; font-weight: 700; color: #333; margin: 0; }
+        .btn-close { background: #f0f0f0; border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #666; cursor: pointer; }
+
+        /* Área de la foto */
+        .card-image-container {
+            width: 100%; height: 150px; background: #eee; border-radius: 12px; 
+            overflow: hidden; margin-bottom: 15px; display: none; /* Oculto si no hay foto */
+        }
+        #card-img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Datos de Ruta (Tiempo/Distancia) */
+        .route-stats { display: none; align-items: baseline; margin-bottom: 10px; }
+        .stat-time { font-size: 24px; font-weight: 700; color: #188038; margin-right: 10px; }
+        .stat-dist { font-size: 16px; color: #666; }
+
+        /* Botón de Acción Principal */
+        #btn-main {
+            width: 100%; padding: 14px; border: none; border-radius: 12px;
+            font-size: 16px; font-weight: 600; color: white;
+            background: #1a73e8; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+        #btn-main:active { transform: scale(0.98); }
+        #btn-main.btn-route { background: #1a73e8; } /* Azul para ir */
+        #btn-main.btn-arrived { background: #ea4335; } /* Rojo para resetear */
+
+        /* --- MARCADORES MAPA --- */
+        .punto-rojo {
+            background-color: #ea4335; border: 2px solid white; border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5); transition: transform 0.2s;
+        }
+        .flecha-azul {
+            width: 0; height: 0;
+            border-left: 12px solid transparent; border-right: 12px solid transparent;
+            border-bottom: 26px solid #4285f4;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4));
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="info-card">
+        <div class="card-content">
+            
+            <div class="card-header">
+                <h3 id="card-title" class="card-title">Selecciona un punto</h3>
+                <button class="btn-close" onclick="cerrarTarjeta()">✕</button>
+            </div>
+
+            <div class="card-image-container" id="img-container">
+                <img id="card-img" src="" alt="Foto del lugar">
+            </div>
+
+            <div class="route-stats" id="route-stats">
+                <span id="lbl-time" class="stat-time">2 min</span>
+                <span id="lbl-dist" class="stat-dist">(100 m)</span>
+            </div>
+
+            <button id="btn-main" onclick="accionPrincipal()">Ir aquí</button>
+        </div>
+    </div>
+
+    <script>
+        // === CONFIGURACIÓN ===
+        const VELOCIDAD_ANDAR = 27; // Calibrado
+
+        // === DATOS (Con Fotos) ===
+        // CAMBIA LAS URLs POR TUS FOTOS REALES: "fotos/cocina.jpg"
+        const nodos = {
+            "n1":  { x: 408, y: 500, nombre: "Entrada Principal", foto: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=400&q=80" },
+            "n2":  { x: 412, y: 332, nombre: "Hab. Gabri",        foto: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&q=80" },
+            "n13": { x: 406, y: 217, nombre: "Hall (Cruce)",      foto: "https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=400&q=80" },
+            "n3":  { x: 378, y: 177, nombre: "Cocina",            foto: "https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&w=400&q=80" },
+            "n5":  { x: 540, y: 185, nombre: "Baño 1",            foto: "" }, // Sin foto
+            "n7":  { x: 587, y: 170, nombre: "Hab. Tobi",         foto: "" },
+            "n8":  { x: 587, y: 74,  nombre: "Hab. Snoopy",       foto: "" },
+            "n12": { x: 902, y: 290, nombre: "Baño 2",            foto: "" },
+
+            // Rieles (Ocultos)
+            "n4": { x: 399, y: 187, esOculto: true }, "n6": { x: 571, y: 173, esOculto: true },
+            "n9": { x: 762, y: 71, esOculto: true }, "n10": { x: 852, y: 123, esOculto: true },
+            "n11": { x: 902, y: 184, esOculto: true }
+        };
+
+        const conexiones = {
+            "n1": ["n2"], "n2": ["n1", "n13"], "n13": ["n2", "n4"],
+            "n4": ["n13", "n3", "n5"], "n3": ["n4"], "n5": ["n4", "n6"],
+            "n6": ["n5", "n7", "n8"], "n7": ["n6"], "n8": ["n6", "n9"],
+            "n9": ["n8", "n10"], "n10": ["n9", "n11"], "n11": ["n10", "n12"], "n12": ["n11"]
+        };
+
+        // === LEAFLET ===
+        const imgObj = new Image();
+        imgObj.src = 'mapa.jpg';
+        
+        let map, layerRuta, marcadorJugador, marcadorDestino;
+        let origen = null, nodoSeleccionado = null;
+
+        imgObj.onload = function() {
+            // Iniciar mapa con las dimensiones de la imagen
+            map = L.map('map', {
+                crs: L.CRS.Simple, minZoom: -2, maxZoom: 2, zoomSnap: 0.5, zoomControl: false, attributionControl: false
+            });
+            const bounds = [[0, 0], [imgObj.naturalHeight, imgObj.naturalWidth]];
+            L.imageOverlay('mapa.jpg', bounds).addTo(map);
+            map.fitBounds(bounds);
+
+            // Pintar puntos
+            dibujarNodos();
+
+            // QR Check
+            const p = new URLSearchParams(window.location.search);
+            if(p.get('inicio')) setOrigen(p.get('inicio'), true);
+        };
+
+        function xy(x, y) { return [imgObj.naturalHeight - y, x]; }
+
+        function dibujarNodos() {
+            for(let id in nodos) {
+                let n = nodos[id];
+                if(n.esOculto) continue;
+
+                const icono = L.divIcon({className: 'punto-rojo', iconSize: [20, 20], iconAnchor: [10, 10]});
+                L.marker(xy(n.x, n.y), {icon: icono}).addTo(map).on('click', () => clickNodo(id));
+            }
+        }
+
+        // === LÓGICA DE INTERACCIÓN ===
+
+        function clickNodo(id) {
+            nodoSeleccionado = id; // Guardamos qué ha tocado el usuario
+            
+            // 1. Rellenar Tarjeta con Info del Nodo
+            const info = nodos[id];
+            document.getElementById('card-title').innerText = info.nombre;
+            
+            // Mostrar/Ocultar Foto
+            const imgContainer = document.getElementById('img-container');
+            const imgEl = document.getElementById('card-img');
+            if(info.foto) {
+                imgEl.src = info.foto;
+                imgContainer.style.display = 'block';
+            } else {
+                imgContainer.style.display = 'none';
+            }
+
+            // Ocultar datos de ruta (porque solo estamos mirando info)
+            document.getElementById('route-stats').style.display = 'none';
+
+            // Configurar botón
+            const btn = document.getElementById('btn-main');
+            if(!origen) {
+                btn.innerText = "📍 ESTOY AQUÍ (Fijar Inicio)";
+                btn.className = "btn-route"; // Azul
+            } else if (origen === id) {
+                btn.innerText = "Estás aquí";
+            } else {
+                btn.innerText = "🏁 IR AQUÍ";
+                btn.className = "btn-route";
+            }
+
+            // Mostrar tarjeta
+            document.getElementById('info-card').classList.add('visible');
+        }
+
+        function cerrarTarjeta() {
+            document.getElementById('info-card').classList.remove('visible');
+        }
+
+        function accionPrincipal() {
+            if(!origen) {
+                setOrigen(nodoSeleccionado);
+            } else {
+                calcularRuta(origen, nodoSeleccionado);
+            }
+        }
+
+        function setOrigen(id, esQR=false) {
+            origen = id;
+            cerrarTarjeta();
+            
+            // Poner flecha azul
+            const flecha = L.divIcon({className: 'flecha-azul', iconSize: [24, 24], iconAnchor: [12, 12]});
+            if(marcadorJugador) map.removeLayer(marcadorJugador);
+            marcadorJugador = L.marker(xy(nodos[id].x, nodos[id].y), {icon: flecha}).addTo(map);
+            
+            map.setView(xy(nodos[id].x, nodos[id].y), 0); // Zoom in ligero
+            
+            if(esQR) alert("¡Hola! Estás en: " + nodos[id].nombre);
+            else alert("Origen fijado. Ahora toca otro punto para ir.");
+        }
+
+        function calcularRuta(ini, fin) {
+            // BFS
+            let q=[[ini]], v=new Set(), found=null;
+            while(q.length>0){
+                let p=q.shift(), c=p[p.length-1];
+                if(c===fin){found=p;break;}
+                if(!v.has(c)){ v.add(c); (conexiones[c]||[]).forEach(n=>q.push([...p, n])); }
+            }
+
+            if(found) {
+                dibujarLinea(found);
+                
+                // Calcular datos
+                let datos = getStats(found);
+                
+                // Actualizar tarjeta a MODO RUTA
+                document.getElementById('card-title').innerText = "Ruta hacia " + nodos[fin].nombre;
+                document.getElementById('img-container').style.display = 'none'; // Ocultar foto para ver datos
+                
+                document.getElementById('route-stats').style.display = 'flex';
+                document.getElementById('lbl-time').innerText = datos.tiempo;
+                document.getElementById('lbl-dist').innerText = `(${datos.distancia} m)`;
+
+                // Cambiar botón a "Terminar"
+                const btn = document.getElementById('btn-main');
+                btn.innerText = "❌ Terminar Ruta";
+                btn.className = "btn-arrived"; // Rojo
+                btn.onclick = () => location.reload(); // Reiniciar al terminar
+
+                // Ajustar zoom para ver toda la ruta
+                map.fitBounds(layerRuta.getBounds(), {padding: [50, 200]}); // Padding abajo para la tarjeta
+                
+                // Mostrar tarjeta
+                document.getElementById('info-card').classList.add('visible');
+            }
+        }
+
+        function getStats(lista) {
+            let px = 0;
+            for(let i=0; i<lista.length-1; i++) {
+                let a = nodos[lista[i]], b = nodos[lista[i+1]];
+                px += Math.sqrt(Math.pow(b.x-a.x, 2) + Math.pow(b.y-a.y, 2));
+            }
+            let segs = Math.round(px / VELOCIDAD_ANDAR);
+            let t = segs < 60 ? segs + " s" : Math.ceil(segs/60) + " min";
+            let d = Math.round(px / 20); 
+            return { tiempo: t, distancia: d };
+        }
+
+        function dibujarLinea(ids) {
+            if(layerRuta) map.removeLayer(layerRuta);
+            const pts = ids.map(id => xy(nodos[id].x, nodos[id].y));
+            layerRuta = L.polyline(pts, {
+                color: '#4285f4', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+            }).addTo(map);
+        }
+    </script>
+</body>
+</html>
