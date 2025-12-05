@@ -155,9 +155,18 @@
         .poi-office {
             background-color: #e67e22;
         }
+
         /* Nuevos estilos */
-        .poi-vending { background-color: #e91e63; } /* Rosa (Máquina) */
-        .poi-water   { background-color: #00bcd4; } /* Azul Cian (Fuentes) */
+        .poi-vending {
+            background-color: #e91e63;
+        }
+
+        /* Rosa (Máquina) */
+        .poi-water {
+            background-color: #00bcd4;
+        }
+
+        /* Azul Cian (Fuentes) */
         /* Naranja (Despachos) */
         /* --- NUEVO: ESTILO PARA LAS FOTOS EN EL MAPA --- */
         .leaflet-popup-content {
@@ -222,7 +231,7 @@
 
 
 
-    <div id="controls">  
+    <div id="controls">
         <div id="origen-texto">📍 Escanea un QR para situarte</div>
 
         <div class="input-group">
@@ -292,10 +301,10 @@
             "p37": { x: 571, y: 325, nombre: "Punto 37" },// ... (resto de tus puntos) ...
             // --- NUEVOS PUNTOS AÑADIDOS ---
             "m1": { x: 519, y: 295, nombre: "Máquina Expendedora", tipo: "vending" },
-            "f1": { x: 520, y: 251, nombre: "Fuente Zona Este",    tipo: "fuente" },
-            "f2": { x: 278, y: 177, nombre: "Fuente Central",      tipo: "fuente" },
-           
-       
+            "f1": { x: 520, y: 251, nombre: "Fuente Zona Este", tipo: "fuente" },
+            "f2": { x: 278, y: 177, nombre: "Fuente Central", tipo: "fuente" },
+
+
             // --- PUNTOS VISUALES DE TRAYECTORIA (FOTOS DEL CAMINO) ---
             "r1": { x: 273, y: 349, nombre: "Vista pasillo", foto: "fotos/T1.jpg" },
             "r2": { x: 238, y: 323, nombre: "Cruce", foto: "fotos/r2.jpg" },
@@ -405,7 +414,7 @@
             "w31": ["w30", "w32"], "w32": ["w31", "w33"], "w33": ["w32", "s18", "w34"],
             "s18": ["w33"], "w34": ["w33", "r2", "w35"], "r2": ["w34"],
             "e4": ["w35"], "w35": ["e4", "w34", "s19", "w36"], "s19": ["w35", "w36"],
-            "w36": ["w35", "s19", "r3", "w37","f2"], "r3": ["w36", "w37"],
+            "w36": ["w35", "s19", "r3", "w37", "f2"], "r3": ["w36", "w37"],
             "w37": ["w36", "r3", "w38", "s20"], "w38": ["w37", "s20", "s21", "w39"],
             "s20": ["w37", "w38"], "s21": ["w38", "w39"], "w39": ["w38", "s22", "w40", "s21"],
             "s22": ["w39"], "w40": ["w39", "w41"], "w41": ["w40", "r4", "w42"],
@@ -424,7 +433,7 @@
             "w62": ["s30", "w61", "w63"], "w63": ["w62", "s30", "w64", "w65"],
             "w64": ["w63", "s31", "e8", "e7"], "s31": ["w64", "e7", "e8"],
             "e8": ["w64", "e7", "s31"], "e7": ["e8", "s31", "w64"], "w65": ["w63", "w66", "s32"],
-            "w66": ["w65", "s32", "w67"], "s32": ["w66", "w65"], "w67": ["w66", "s34", "w72","f1"],
+            "w66": ["w65", "s32", "w67"], "s32": ["w66", "w65"], "w67": ["w66", "s34", "w72", "f1"],
             "s34": ["w67", "w68"], "w68": ["s34", "w69"], "w69": ["w68", "w70"],
             "w70": ["w69", "w71"], "w71": ["w70", "s35"], "s35": ["w71"],
             "w72": ["w67", "s33", "w73"], "s33": ["w72"], "w73": ["w72", "w74", "m1"],
@@ -487,72 +496,62 @@
         }
 
         // ==========================================
-        // B) PINTAR PUNTOS DE INTERÉS (ICONOS FIJOS)
+        // B) PINTAR PUNTOS DE INTERÉS Y ASIGNAR FOTOS POR ID
         // ==========================================
 
-        // 1. Definimos la configuración visual de cada tipo
         const configIconos = {
             'wc': { texto: '🚾', clase: 'poi-wc' },
             'cafeteria': { texto: '☕', clase: 'poi-cafe' },
             'consejeria': { texto: 'ℹ️', clase: 'poi-info' },
             'ascensor': { texto: '🛗', clase: 'poi-lift' },
-            // Nuevas categorías
             'entrada': { texto: '🚪', clase: 'poi-entry' },
             'escalera': { texto: '🪜', clase: 'poi-stairs' },
             'laboratorio': { texto: '🧪', clase: 'poi-lab' },
             'clase': { texto: '🎓', clase: 'poi-class' },
             'despacho': { texto: '💼', clase: 'poi-office' },
-            // ...
             'vending': { texto: '🥤', clase: 'poi-vending' },
-            'fuente':  { texto: '💧', clase: 'poi-water' },
+            'fuente': { texto: '💧', clase: 'poi-water' }
         };
-   
-        // 2. Bucle automático para asignar tipos a los puntos que no lo tienen
+
         Object.keys(nodos).forEach(id => {
+            const numero = parseInt(id.replace('p', '')); // Para p33 -> 33
 
-            // Si es una Escalera (Empieza por 'e')
-            if (id.startsWith('e')) {
+            // 1. ASIGNACIÓN AUTOMÁTICA DE TIPOS Y NOMBRES (Si no tienen ya)
+            if (id.startsWith('e') && !nodos[id].tipo) {
                 nodos[id].tipo = 'escalera';
+                if (!nodos[id].nombre) nodos[id].nombre = `Escalera ${id.replace('e', '')}`;
             }
-
-            // Si es un Punto normal (Empieza por 'p')
-            else if (id.startsWith('p')) {
-                const numero = parseInt(id.replace('p', '')); // Sacamos el número (ej: p33 -> 33)
-
-                // Casos especiales fijos
-                if (id === 'p1') nodos[id].tipo = 'entrada';
-                else if (id === 'p2') nodos[id].tipo = 'consejeria';
-
-                // Asignación automática para el resto (del 3 al 37)
-                // Solo si NO tiene ya un tipo (para respetar la cafetería p26)
-                else if (numero >= 3 && numero <= 37 && !nodos[id].tipo) {
-
-                    // Usamos el "módulo" (%) para repartir en 3 categorías
-                    const resto = numero % 3;
-
-                    if (resto === 0) {
-                        nodos[id].tipo = 'laboratorio'; // Ej: 3, 6, 9...
-                        nodos[id].nombre = `Laboratorio ${numero}`; // Nombre temporal para ver efecto
-                    } else if (resto === 1) {
-                        nodos[id].tipo = 'despacho';    // Ej: 4, 7, 10...
-                        nodos[id].nombre = `Despacho ${numero}`;
-                    } else {
-                        nodos[id].tipo = 'clase';       // Ej: 5, 8, 11...
-                        nodos[id].nombre = `Aula ${numero}`;
-                    }
+            else if (id === 'p1') { nodos[id].tipo = 'entrada'; }
+            else if (id === 'p2') { nodos[id].tipo = 'consejeria'; }
+            else if (id.startsWith('p') && numero >= 3 && numero <= 37 && !nodos[id].tipo) {
+                const resto = numero % 3;
+                if (resto === 0) {
+                    nodos[id].tipo = 'laboratorio';
+                    if (!nodos[id].nombre) nodos[id].nombre = `Laboratorio ${numero}`;
+                } else if (resto === 1) {
+                    nodos[id].tipo = 'despacho';
+                    if (!nodos[id].nombre) nodos[id].nombre = `Despacho ${numero}`;
+                } else {
+                    nodos[id].tipo = 'clase';
+                    if (!nodos[id].nombre) nodos[id].nombre = `Aula ${numero}`;
                 }
             }
+
+            // 2. ¡MAGIA SIMPLIFICADA! 📸
+            // Asignamos la foto basada DIRECTAMENTE en el ID (p1.jpg, r1.jpg, etc.)
+            // Sobrescribimos cualquier cosa anterior para asegurar que usa el sistema nuevo.
+            nodos[id].foto = `fotos/${id}.jpg`;
         });
 
-        // 3. Pintar los marcadores en el mapa
+        // 3. Pintar los marcadores
         Object.keys(nodos).forEach(id => {
             const n = nodos[id];
 
-            // Si el nodo tiene un tipo definido en nuestra config, lo pintamos
+            // Puntos con tipo visual
             if (n.tipo && configIconos[n.tipo]) {
                 crearMarcadorFijo(n, configIconos[n.tipo], id);
             }
-            // Mantener compatibilidad con tus baños antiguos (si usaban ID 'b...')
+            // Compatibilidad baños antiguos (si usas ids como 'b1')
             else if (id.toLowerCase().startsWith('b') && !n.tipo) {
                 crearMarcadorFijo(n, configIconos['wc'], id);
             }
@@ -805,7 +804,7 @@
             });
 
             return ganadorID;
-        }
+        } 
     </script>
 </body>
 
